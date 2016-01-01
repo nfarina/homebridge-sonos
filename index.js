@@ -1,6 +1,9 @@
 var sonos = require('sonos');
+var _ = require('underscore');
 var inherits = require('util').inherits;
 var Service, Characteristic, VolumeCharacteristic;
+var devices = [];
+var registeredSonosZoneCoordinators = new Map();
 
 module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
@@ -11,6 +14,91 @@ module.exports = function(homebridge) {
   
   homebridge.registerAccessory("homebridge-sonos", "Sonos", SonosAccessory);
 }
+
+
+//
+// Node-Sonos Functions to process device information
+//
+
+function getBridges (deviceList) {
+  var bridges = [];
+  deviceList.forEach(function (device) {
+    if (device.CurrentZoneName == 'BRIDGE' && bridges.indexOf(device.ip + ':' + device.port) == -1) {
+      bridges.push(device.ip + ':' + device.port);
+    }
+  });
+  return bridges;
+}
+
+function getBridgeDevices (deviceList) {
+  var bridgeDevices = [];
+  deviceList.forEach(function (device) {
+    if (device.CurrentZoneName == 'BRIDGE') {
+      bridgeDevices.push(device);
+    }
+  });
+  return bridgeDevices;
+}
+
+function getZones (deviceList) {
+  var zones = [];
+  deviceList.forEach(function (device) {
+    if (zones.indexOf(device.CurrentZoneName) == -1 && device.CurrentZoneName != 'BRIDGE') {
+      zones.push(device.CurrentZoneName);
+    }
+  });
+  return zones;
+}
+
+function getZoneDevices (zone, deviceList) {
+  var zoneDevices = [];
+  deviceList.forEach(function (device) {
+    if (device.CurrentZoneName == zone) {
+      zoneDevices.push(device);
+    }
+  });
+  return zoneDevices;
+}
+
+function getZoneCoordinator (zone, deviceList) {
+  var coordinator;
+  deviceList.forEach(function (device) {
+    if (device.CurrentZoneName == zone && device.coordinator == 'true') {
+      coordinator = device;
+    }
+  })
+  return coordinator;
+}
+
+function gatherDevicesList(accessory) {
+        var search = sonos.search(function(device, model) {
+                var data = {ip: device.host, port: device.port, model: model};
+
+                device.getZoneAttrs(function (err, attrs) {
+                        if (!err) {
+                                _.extend(data, attrs);
+                        }
+                        device.getZoneInfo(function (err, info) {
+                                if (!err) {
+                                        _.extend(data, info);
+                                }
+                                device.getTopology(function (err, info) {
+                                        if (!err) {
+                                                info.zones.forEach(function (group) {
+                                                        if (group.location == 'http://' + data.ip + ':' + data.port + '/xml/device_description.xml') {
+                                                                _.extend(data, group);
+                                                        }
+                                                });
+                                        }
+                                        devices.push(data);
+                                });
+                        });
+                        accessory.search();
+                });
+        });
+}
+
+
 
 //
 // Sonos Accessory
@@ -36,8 +124,10 @@ function SonosAccessory(log, config) {
     .on('get', this.getVolume.bind(this))
     .on('set', this.setVolume.bind(this));
   
+  // prepare list of devices and properties, then begin searching for a Sonos device with the given name
+  gatherDevicesList(this);
   // begin searching for a Sonos device with the given name
-  this.search();
+  // this.search();
 }
 
 SonosAccessory.zoneTypeIsPlayable = function(zoneType) {
@@ -54,7 +144,8 @@ SonosAccessory.prototype.search = function() {
         
         var zoneType = description["zoneType"];
         var roomName = description["roomName"];
-        
+        var udn = description["UDN"];
+         
         if (!SonosAccessory.zoneTypeIsPlayable(zoneType)) {
           this.log.debug("Sonos device %s is not playable (has an unknown zone type of %s); ignoring", host, zoneType);
           return;
@@ -65,9 +156,17 @@ SonosAccessory.prototype.search = function() {
           return;
         }
         
-        this.log("Found a playable device at %s for room '%s'", host, roomName);
-        this.device = device;
-        search.socket.close(); // we don't need to continue searching.
+        var coordinator = getZoneCoordinator(roomName, devices);
+        if (coordinator != undefined) {
+                if (udn == "uuid:" + coordinator.uuid) {
+                        if (registeredSonosZoneCoordinators.get(coordinator.uuid) == undefined) {
+                                this.log("Found a playable coordinator device at %s for room '%s'", host, roomName);
+                                this.device = device;
+                                registeredSonosZoneCoordinators.set(coordinator.uuid, coordinator);
+                                search.socket.close(); // we don't need to continue searching.
+                        }
+                }
+        }
         
     }.bind(this));
   }.bind(this));
