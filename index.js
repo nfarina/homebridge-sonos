@@ -5,7 +5,7 @@ var inherits = require('util').inherits;
 var Service, Characteristic, VolumeCharacteristic;
 var sonosDevices = new Map();
 var sonosAccessories = [];
-var Listener = require('../homebridge-sonos/node_modules/sonos/lib/events/listener');
+var Listener = require('sonos/lib/events/listener');
 
 module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
