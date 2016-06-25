@@ -257,8 +257,8 @@ SonosAccessory.prototype.setOn = function(on, callback) {
     }.bind(this));
   }
   else {
-      this.device.stop(function(err, success) {
-          this.log("Stop attempt with success: " + success);
+      this.device.pause(function(err, success) {
+          this.log("Pause attempt with success: " + success);
           if (err) {
             callback(err);
           }
