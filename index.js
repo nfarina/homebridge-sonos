@@ -201,7 +201,7 @@ SonosAccessory.prototype.search = function() {
                                         if (coordinator.ip == data.ip) {
                                                 this.log("Found a playable coordinator device at %s in zone '%s' for accessory '%s' in accessory room '%s'", data.ip, data.CurrentZoneName, this.name, this.room);
                                                 this.device = device;
-                                                search.socket.close(); // we don't need to continue searching.
+                                                search.destroy(); // we don't need to continue searching.
                                         }
                                 }
 
