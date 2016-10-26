@@ -144,7 +144,7 @@ function SonosAccessory(log, config) {
 
   if (!this.room) throw new Error("You must provide a config value for 'room'.");
 
-  this.service = new Service.Switch(this.name);
+  this.service = new Service.Lightbulb(this.name);
 
   this.service
     .getCharacteristic(Characteristic.On)
@@ -152,7 +152,7 @@ function SonosAccessory(log, config) {
     .on('set', this.setOn.bind(this));
 
   this.service
-    .addCharacteristic(VolumeCharacteristic)
+    .addCharacteristic(Brightness)
     .on('get', this.getVolume.bind(this))
     .on('set', this.setVolume.bind(this));
 
