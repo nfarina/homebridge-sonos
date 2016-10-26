@@ -152,7 +152,7 @@ function SonosAccessory(log, config) {
     .on('set', this.setOn.bind(this));
 
   this.service
-    .addCharacteristic(Brightness)
+    .addCharacteristic(Characteristic.Brightness)
     .on('get', this.getVolume.bind(this))
     .on('set', this.setVolume.bind(this));
 
@@ -257,7 +257,7 @@ SonosAccessory.prototype.setOn = function(on, callback) {
     }.bind(this));
   }
   else {
-      this.device.stop(function(err, success) {
+      this.device.pause(function(err, success) {
           this.log("Stop attempt with success: " + success);
           if (err) {
             callback(err);
