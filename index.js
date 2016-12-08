@@ -223,16 +223,17 @@ SonosAccessory.prototype.getOn = function(callback) {
     return;
   }
 
-  this.device.getCurrentState(function(err, state) {
-    
+  this.device.getMuted(function(err, state) {
+
     if (err) {
       callback(err);
     }
     else {
-      var on = (state == "playing");
+      this.log.warn("Current state for Sonos: " + state);
+      var on = (state == false);
       callback(null, on);
     }
-    
+
   }.bind(this));
 }
 
@@ -246,8 +247,8 @@ SonosAccessory.prototype.setOn = function(on, callback) {
   this.log("Setting power to " + on);
   
   if (on) {
-    this.device.play(function(err, success) {
-      this.log("Playback attempt with success: " + success);
+    this.device.setMuted(false, function(err, success) {
+      this.log("Unmute attempt with success: " + success);
       if (err) {
         callback(err);
       }
@@ -257,8 +258,8 @@ SonosAccessory.prototype.setOn = function(on, callback) {
     }.bind(this));
   }
   else {
-      this.device.stop(function(err, success) {
-          this.log("Stop attempt with success: " + success);
+      this.device.setMuted(true, function(err, success) {
+          this.log("Mute attempt with success: " + success);
           if (err) {
             callback(err);
           }
@@ -267,6 +268,7 @@ SonosAccessory.prototype.setOn = function(on, callback) {
           }
       }.bind(this));
   }
+
 }
 
 SonosAccessory.prototype.getVolume = function(callback) {
