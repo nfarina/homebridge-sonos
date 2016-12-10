@@ -9,7 +9,7 @@ Example config.json:
           "accessory": "Sonos",
           "name": "Bedroom Speakers",
           "room": "Bedroom",
-	  "mute": true
+          "mute": true
         }
       ]
     }
