@@ -11,9 +11,6 @@ module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
   Characteristic = homebridge.hap.Characteristic;
 
-  // we can only do this after we receive the homebridge API object
-  makeVolumeCharacteristic();
-
   homebridge.registerAccessory("homebridge-sonos", "Sonos", SonosAccessory);
 }
 
@@ -153,7 +150,7 @@ function SonosAccessory(log, config) {
     .on('set', this.setOn.bind(this));
 
   this.service
-    .addCharacteristic(VolumeCharacteristic)
+    .addCharacteristic(Characteristic.Volume)
     .on('get', this.getVolume.bind(this))
     .on('set', this.setVolume.bind(this));
 
@@ -349,27 +346,4 @@ SonosAccessory.prototype.setVolume = function(volume, callback) {
       callback(null);
     }
   }.bind(this));
-}
-
-
-//
-// Custom Characteristic for Volume
-//
-
-function makeVolumeCharacteristic() {
-
-  VolumeCharacteristic = function() {
-    Characteristic.call(this, 'Volume', '91288267-5678-49B2-8D22-F57BE995AA93');
-    this.setProps({
-      format: Characteristic.Formats.INT,
-      unit: Characteristic.Units.PERCENTAGE,
-      maxValue: 100,
-      minValue: 0,
-      minStep: 1,
-      perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
-    });
-    this.value = this.getDefaultValue();
-  };
-  
-  inherits(VolumeCharacteristic, Characteristic);
 }
