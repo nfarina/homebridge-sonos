@@ -1,6 +1,6 @@
 {
   "name": "homebridge-sonos",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Sonos plugin for homebridge: https://github.com/nfarina/homebridge",
   "license": "ISC",
   "keywords": [
@@ -18,7 +18,7 @@
     "homebridge": ">=0.2.0"
   },
   "dependencies": {
-    "sonos": "^0.8.0",
+    "sonos": "^0.12.1",
     "underscore": "^1.8.3"
   }
 }

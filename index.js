@@ -11,9 +11,6 @@ module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
   Characteristic = homebridge.hap.Characteristic;
 
-  // we can only do this after we receive the homebridge API object
-  makeVolumeCharacteristic();
-
   homebridge.registerAccessory("homebridge-sonos", "Sonos", SonosAccessory);
 }
 
@@ -141,6 +138,7 @@ function SonosAccessory(log, config) {
   this.config = config;
   this.name = config["name"];
   this.room = config["room"];
+  this.mute = config["mute"];
 
   if (!this.room) throw new Error("You must provide a config value for 'room'.");
 
@@ -152,7 +150,7 @@ function SonosAccessory(log, config) {
     .on('set', this.setOn.bind(this));
 
   this.service
-    .addCharacteristic(VolumeCharacteristic)
+    .addCharacteristic(Characteristic.Volume)
     .on('get', this.getVolume.bind(this))
     .on('set', this.setVolume.bind(this));
 
@@ -201,7 +199,7 @@ SonosAccessory.prototype.search = function() {
                                         if (coordinator.ip == data.ip) {
                                                 this.log("Found a playable coordinator device at %s in zone '%s' for accessory '%s' in accessory room '%s'", data.ip, data.CurrentZoneName, this.name, this.room);
                                                 this.device = device;
-                                                search.socket.close(); // we don't need to continue searching.
+                                                search.destroy(); // we don't need to continue searching.
                                         }
                                 }
 
@@ -223,17 +221,32 @@ SonosAccessory.prototype.getOn = function(callback) {
     return;
   }
 
-  this.device.getCurrentState(function(err, state) {
-    
-    if (err) {
-      callback(err);
-    }
-    else {
-      var on = (state == "playing");
-      callback(null, on);
-    }
-    
-  }.bind(this));
+  if (!this.mute) {
+    this.device.getCurrentState(function(err, state) {
+      if (err) {
+        callback(err);
+      }
+      else {
+        this.log.warn("Current state for Sonos: " + state);
+        var on = (state == "playing");
+        callback(null, on);
+      }
+    }.bind(this));
+  }
+  else {
+     this.device.getMuted(function(err, state) {
+
+      if (err) {
+        callback(err);
+      }
+      else {
+        this.log.warn("Current state for Sonos: " + state);
+        var on = (state == false);
+        callback(null, on);
+      }
+    }.bind(this));
+
+  }
 }
 
 SonosAccessory.prototype.setOn = function(on, callback) {
@@ -244,28 +257,54 @@ SonosAccessory.prototype.setOn = function(on, callback) {
   }
 
   this.log("Setting power to " + on);
-  
-  if (on) {
-    this.device.play(function(err, success) {
-      this.log("Playback attempt with success: " + success);
-      if (err) {
-        callback(err);
-      }
-      else {
-        callback(null);
-      }
-    }.bind(this));
+
+  if (!this.mute){
+    if (on) {
+      this.device.play(function(err, success) {
+        this.log("Playback attempt with success: " + success);
+        if (err) {
+          callback(err);
+        }
+        else {
+          callback(null);
+        }
+      }.bind(this));
+    }
+    else {
+        this.device.pause(function(err, success) {
+            this.log("Pause attempt with success: " + success);
+            if (err) {
+              callback(err);
+            }
+            else {
+              callback(null);
+            }
+        }.bind(this));
+    }
   }
   else {
-      this.device.pause(function(err, success) {
-          this.log("Pause attempt with success: " + success);
-          if (err) {
-            callback(err);
-          }
-          else {
-            callback(null);
-          }
+    if (on) {
+      this.device.setMuted(false, function(err, success) {
+        this.log("Unmute attempt with success: " + success);
+        if (err) {
+          callback(err);
+        }
+        else {
+          callback(null);
+        }
       }.bind(this));
+    }
+    else {
+        this.device.setMuted(true, function(err, success) {
+            this.log("Mute attempt with success: " + success);
+            if (err) {
+              callback(err);
+            }
+            else {
+              callback(null);
+            }
+        }.bind(this));
+    }
   }
 }
 
@@ -277,7 +316,7 @@ SonosAccessory.prototype.getVolume = function(callback) {
   }
 
   this.device.getVolume(function(err, volume) {
-    
+
     if (err) {
       callback(err);
     }
@@ -285,7 +324,7 @@ SonosAccessory.prototype.getVolume = function(callback) {
       this.log("Current volume: %s", volume);
       callback(null, Number(volume));
     }
-    
+
   }.bind(this));
 }
 
@@ -297,7 +336,7 @@ SonosAccessory.prototype.setVolume = function(volume, callback) {
   }
 
   this.log("Setting volume to %s", volume);
-  
+
   this.device.setVolume(volume + "", function(err, data) {
     this.log("Set volume response with data: " + data);
     if (err) {
@@ -307,27 +346,4 @@ SonosAccessory.prototype.setVolume = function(volume, callback) {
       callback(null);
     }
   }.bind(this));
-}
-
-
-//
-// Custom Characteristic for Volume
-//
-
-function makeVolumeCharacteristic() {
-
-  VolumeCharacteristic = function() {
-    Characteristic.call(this, 'Volume', '91288267-5678-49B2-8D22-F57BE995AA93');
-    this.setProps({
-      format: Characteristic.Formats.INT,
-      unit: Characteristic.Units.PERCENTAGE,
-      maxValue: 100,
-      minValue: 0,
-      minStep: 1,
-      perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
-    });
-    this.value = this.getDefaultValue();
-  };
-  
-  inherits(VolumeCharacteristic, Characteristic);
 }
