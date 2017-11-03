@@ -1,5 +1,5 @@
 {
-  "name": "homebridge-sonos",
+  "name": "homebridge-sonos-schmittx",
   "version": "0.2.2",
   "description": "Sonos plugin for homebridge: https://github.com/nfarina/homebridge",
   "license": "ISC",
