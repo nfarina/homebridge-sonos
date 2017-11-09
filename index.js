@@ -160,16 +160,6 @@ function SonosAccessory(log, config) {
     .on('get', this.getOn.bind(this))
     .on('set', this.setOn.bind(this));
 
-  this.switchService
-    .addCharacteristic(Characteristic.Mute)
-    .on('get', this.getMute.bind(this))
-    .on('set', this.setMute.bind(this));
-
-  this.switchService
-    .addCharacteristic(Characteristic.Volume)
-    .on('get', this.getVolume.bind(this))
-    .on('set', this.setVolume.bind(this));
-
   this.speakerService = new Service.Speaker(this.name);
 
   this.speakerService
