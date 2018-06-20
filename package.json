@@ -8,10 +8,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/nfarina/homebridge-sonos.git"
+    "url": "git://github.com/msutara/homebridge-sonos.git"
   },
   "bugs": {
-    "url": "http://github.com/nfarina/homebridge-sonos/issues"
+    "url": "http://github.com/msutara/homebridge-sonos/issues"
   },
   "engines": {
     "node": ">=0.12.0",
