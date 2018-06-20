@@ -377,7 +377,7 @@ SonosAccessory.prototype.updateState = function (callback) {
 
         // Update states for all HomeKit accessories
         sonosAccessories.forEach(function (accessory) {
-                var volume = accessory.device.getVolume(function (err, volume) {
+                accessory.device.getVolume(function (err, volume) {
                         if (err) {
                                 this.log.warn("Ignoring, hit an error to get volume");
                                 callback(err);
@@ -385,12 +385,11 @@ SonosAccessory.prototype.updateState = function (callback) {
 
                         }
                         this.log("getVolume: " + volume);
-                        return Number(volume);
+                        accessory.service
+                                .setCharacteristic(Characteristic.Brightness, Number(volume));
 
                 }.bind(this));
-                accessory.service
-                        .setCharacteristic(Characteristic.Brightness, volume);
-                var on = accessory.device.getCurrentState(function (err, state) {
+                accessory.device.getCurrentState(function (err, state) {
                         if (err) {
                                 this.log.warn("Ignoring, hit an error to get state");
                                 callback(err);
@@ -399,12 +398,10 @@ SonosAccessory.prototype.updateState = function (callback) {
                         }
                         this.log("getCurrentState: " + state);
                         var currState = (state == "playing");
-                        return currState;
+                        accessory.service
+                                .setCharacteristic(Characteristic.On, currState);
 
                 }.bind(this));
-                accessory.service
-                        .setCharacteristic(Characteristic.On, on);
-
         }.bind(this));
         callback(null);
 }
