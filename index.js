@@ -142,9 +142,21 @@ function SonosAccessory(log, config) {
         this.config = config;
         this.name = config["name"];
         this.room = config["room"];
+        this.mute = config["mute"];
+        this.model = config["model"];
+        this.serial = config["serial_number"];
 
         if (!this.name) throw new Error("You must provide a config value for 'name'.");
         if (!this.room) throw new Error("You must provide a config value for 'room'.");
+
+        this.accessoryInformationService = new Service.AccessoryInformation();
+
+        this.accessoryInformationService
+                .setCharacteristic(Characteristic.Manufacturer, "Sonos")
+                .setCharacteristic(Characteristic.Model, this.model || "Not Available")
+                .setCharacteristic(Characteristic.Name, this.name)
+                .setCharacteristic(Characteristic.SerialNumber, this.serial || "Not Available")
+                .setCharacteristic(Characteristic.FirmwareRevision, require('./package.json').version);
 
         this.longPoll = parseInt(this.config.longPoll, 10) || 60;
         this.shortPoll = parseInt(this.config.shortPoll, 10) || 15;
@@ -154,14 +166,22 @@ function SonosAccessory(log, config) {
         this.count = this.maxCount;
 
         this.service = new Service.Lightbulb(this.name);
-
         this.service
                 .getCharacteristic(Characteristic.On)
                 .on('get', this.getOn.bind(this))
                 .on('set', this.setOn.bind(this));
-
         this.service
                 .addCharacteristic(Characteristic.Brightness)
+                .on('get', this.getVolume.bind(this))
+                .on('set', this.setVolume.bind(this));
+
+        this.speakerService = new Service.Speaker(this.name);
+        this.speakerService
+                .getCharacteristic(Characteristic.Mute)
+                .on('get', this.getMute.bind(this))
+                .on('set', this.setMute.bind(this));
+        this.speakerService
+                .addCharacteristic(Characteristic.Volume)
                 .on('get', this.getVolume.bind(this))
                 .on('set', this.setVolume.bind(this));
 
@@ -223,7 +243,7 @@ SonosAccessory.prototype.search = function () {
 }
 
 SonosAccessory.prototype.getServices = function () {
-        return [this.service];
+        return [this.accessoryInformationService, this.service, this.speakerService];
 }
 
 SonosAccessory.prototype.getOn = function (callback) {
@@ -233,17 +253,35 @@ SonosAccessory.prototype.getOn = function (callback) {
                 return;
         }
 
-        this.device.getCurrentState(function (err, state) {
+        if (!this.mute) {
+                this.device.getCurrentState(function (err, state) {
 
-                if (err) {
-                        callback(err);
-                }
-                else {
-                        var on = (state == "playing");
-                        callback(null, on);
-                }
+                        if (err) {
+                                callback(err);
 
-        }.bind(this));
+                        }
+                        else {
+                                var on = (state == "playing");
+                                callback(null, on);
+
+                        }
+                }.bind(this));
+        }
+        else {
+                this.device.getMuted(function (err, state) {
+
+                        if (err) {
+                                callback(err);
+
+                        }
+                        else {
+                                this.log.warn("Current state for Sonos: " + state);
+                                var on = (state == false);
+                                callback(null, on);
+
+                        }
+                }.bind(this));
+        }
 }
 
 SonosAccessory.prototype.setOn = function (on, callback) {
@@ -251,31 +289,61 @@ SonosAccessory.prototype.setOn = function (on, callback) {
                 this.log.warn("Ignoring request; Sonos device has not yet been discovered. Confirm 'room' parameter matches Sonos App");
                 callback(new Error("Sonos has not been discovered yet."));
                 return;
+
         }
 
         this.log("Setting power to " + on);
-
-        if (on) {
-                this.device.play(function (err, success) {
-                        this.log("Playback attempt with success: " + success);
-                        if (err) {
-                                callback(err);
-                        }
-                        else {
-                                callback(null);
-                        }
-                }.bind(this));
+        if (!this.mute) {
+                if (on) {
+                        this.device.play(function (err, success) {
+                                this.log("Playback attempt with success: " + success);
+                                if (err) {
+                                        callback(err);
+                                }
+                                else {
+                                        callback(null);
+                                }
+                        }.bind(this));
+                }
+                else {
+                        this.device.pause(function (err, success) {
+                                this.log("Stop attempt with success: " + success);
+                                if (err) {
+                                        callback(err);
+                                }
+                                else {
+                                        callback(null);
+                                }
+                        }.bind(this));
+                }
         }
         else {
-                this.device.pause(function (err, success) {
-                        this.log("Stop attempt with success: " + success);
-                        if (err) {
-                                callback(err);
-                        }
-                        else {
-                                callback(null);
-                        }
-                }.bind(this));
+                if (on) {
+                        this.device.setMuted(false, function (err, success) {
+                                this.log("Unmute attempt with success: " + success);
+                                if (err) {
+                                        callback(err);
+
+                                }
+                                else {
+                                        callback(null);
+
+                                }
+                        }.bind(this));
+                }
+                else {
+                        this.device.setMuted(true, function (err, success) {
+                                this.log("Mute attempt with success: " + success);
+                                if (err) {
+                                        callback(err);
+
+                                }
+                                else {
+                                        callback(null);
+
+                                }
+                        }.bind(this));
+                }
         }
 }
 
@@ -319,6 +387,48 @@ SonosAccessory.prototype.setVolume = function (volume, callback) {
         }.bind(this));
 }
 
+SonosAccessory.prototype.getMute = function (callback) {
+        if (!this.device) {
+                this.log.warn("Ignoring request; Sonos device has not yet been discovered.");
+                callback(new Error("Sonos has not been discovered yet."));
+                return;
+
+        }
+
+        this.device.getMuted(function (err, state) {
+                if (err) {
+                        callback(err);
+
+                }
+                else {
+                        this.log.warn("Current mute state for Sonos: " + state);
+                        callback(null, state);
+
+                }
+        }.bind(this));
+}
+
+SonosAccessory.prototype.setMute = function (mute, callback) {
+        if (!this.device) {
+                this.log.warn("Ignoring request; Sonos device has not yet been discovered.");
+                callback(new Error("Sonos has not been discovered yet."));
+                return;
+
+        }
+
+        this.log("Setting mute to " + mute);
+        this.device.setMuted(mute, function (err, success) {
+                this.log("Unmute attempt with success: " + success);
+                if (err) {
+                        callback(err);
+
+                }
+                else {
+                        callback(null);
+
+                }
+        }.bind(this));
+}
 
 //
 // Custom Characteristic for Volume
@@ -385,23 +495,44 @@ SonosAccessory.prototype.updateState = function (callback) {
 
                         }
                         this.log("getVolume: " + volume);
+                        var vol = Number(volume);
                         accessory.service
-                                .setCharacteristic(Characteristic.Brightness, Number(volume));
+                                .setCharacteristic(Characteristic.Brightness, vol);
+                        accessory.speakerService
+                                .setCharacteristic(Characteristic.Volume, vol);
 
                 }.bind(this));
-                accessory.device.getCurrentState(function (err, state) {
-                        if (err) {
-                                this.log.warn("Ignoring, hit an error to get state");
-                                callback(err);
-                                return;
 
-                        }
-                        this.log("getCurrentState: " + state);
-                        var currState = (state == "playing");
-                        accessory.service
-                                .setCharacteristic(Characteristic.On, currState);
+                if (!this.mute) {
+                        accessory.device.getCurrentState(function (err, state) {
+                                if (err) {
+                                        this.log.warn("Ignoring, hit an error to get state");
+                                        callback(err);
+                                        return;
 
-                }.bind(this));
+                                }
+                                this.log("getCurrentState: " + state);
+                                var currState = (state == "playing");
+                                accessory.service
+                                        .setCharacteristic(Characteristic.On, currState);
+
+                        }.bind(this));
+                }
+                else {
+                        accessory.device.getMuted(function (err, state) {
+                                if (err) {
+                                        this.log.warn("Ignoring, hit an error to get muted state");
+                                        callback(err);
+                                        return;
+
+                                }
+                                this.log("getMuted: " + state);
+                                var currState = (state == "playing");
+                                accessory.speakerService
+                                        .setCharacteristic(Characteristic.Mute, currState);
+
+                        }.bind(this));
+                }
         }.bind(this));
         callback(null);
 }

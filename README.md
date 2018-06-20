@@ -7,7 +7,10 @@ Example config.json:
         {
           "accessory": "Sonos",
           "name": "Living Room Speakers",
-          "room": "Living Room"
+          "room": "Living Room",
+          "mute": false,
+          "model": "PLAY:1",
+          "serial_number": "78-28-CA-45-88:E"
         }
       ]
     }
