@@ -26,6 +26,7 @@ function getZoneGroupCoordinator(zone) {
         sonosDevices.forEach(function (device) {
                 if (device.CurrentZoneName == zone && device.coordinator == 'true') {
                         coordinator = device;
+
                 }
         });
         if (coordinator == undefined) {
@@ -34,6 +35,7 @@ function getZoneGroupCoordinator(zone) {
                         sonosDevices.forEach(function (device) {
                                 if (device.group == group && device.coordinator == 'true') {
                                         coordinator = device;
+
                                 }
                         });
                 });
@@ -46,6 +48,7 @@ function getZoneGroupNames(zone) {
         sonosDevices.forEach(function (device) {
                 if (device.CurrentZoneName == zone) {
                         groups.push(device.group);
+
                 }
         });
         return groups;
@@ -165,25 +168,30 @@ function SonosAccessory(log, config) {
         this.maxCount = this.shortPollDuration / this.shortPoll;
         this.count = this.maxCount;
 
-        this.service = new Service.Lightbulb(this.name);
-        this.service
-                .getCharacteristic(Characteristic.On)
-                .on('get', this.getOn.bind(this))
-                .on('set', this.setOn.bind(this));
-        this.service
-                .addCharacteristic(Characteristic.Brightness)
-                .on('get', this.getVolume.bind(this))
-                .on('set', this.setVolume.bind(this));
+        if (!this.mute) {
+                this.service = new Service.Lightbulb(this.name);
+                this.service
+                        .getCharacteristic(Characteristic.On)
+                        .on('get', this.getOn.bind(this))
+                        .on('set', this.setOn.bind(this));
+                this.service
+                        .addCharacteristic(Characteristic.Brightness)
+                        .on('get', this.getVolume.bind(this))
+                        .on('set', this.setVolume.bind(this));
 
-        this.speakerService = new Service.Speaker(this.name);
-        this.speakerService
-                .getCharacteristic(Characteristic.Mute)
-                .on('get', this.getMute.bind(this))
-                .on('set', this.setMute.bind(this));
-        this.speakerService
-                .addCharacteristic(Characteristic.Volume)
-                .on('get', this.getVolume.bind(this))
-                .on('set', this.setVolume.bind(this));
+        }
+        else {
+                this.speakerService = new Service.Speaker(this.name);
+                this.speakerService
+                        .getCharacteristic(Characteristic.Mute)
+                        .on('get', this.getMute.bind(this))
+                        .on('set', this.setMute.bind(this));
+                this.speakerService
+                        .addCharacteristic(Characteristic.Volume)
+                        .on('get', this.getVolume.bind(this))
+                        .on('set', this.setVolume.bind(this));
+
+        }
 
         this.search();
         this.periodicUpdate();
@@ -243,7 +251,14 @@ SonosAccessory.prototype.search = function () {
 }
 
 SonosAccessory.prototype.getServices = function () {
-        return [this.accessoryInformationService, this.service, this.speakerService];
+        if (!this.mute) {
+                return [this.accessoryInformationService, this.service];
+
+        }
+        else {
+                return [this.accessoryInformationService, this.speakerService];
+
+        }
 }
 
 SonosAccessory.prototype.getOn = function (callback) {
@@ -299,9 +314,11 @@ SonosAccessory.prototype.setOn = function (on, callback) {
                                 this.log("Playback attempt with success: " + success);
                                 if (err) {
                                         callback(err);
+
                                 }
                                 else {
                                         callback(null);
+
                                 }
                         }.bind(this));
                 }
@@ -310,9 +327,11 @@ SonosAccessory.prototype.setOn = function (on, callback) {
                                 this.log("Stop attempt with success: " + success);
                                 if (err) {
                                         callback(err);
+
                                 }
                                 else {
                                         callback(null);
+
                                 }
                         }.bind(this));
                 }
@@ -358,12 +377,13 @@ SonosAccessory.prototype.getVolume = function (callback) {
 
                 if (err) {
                         callback(err);
+
                 }
                 else {
                         this.log("Current volume: %s", volume);
                         callback(null, Number(volume));
-                }
 
+                }
         }.bind(this));
 }
 
@@ -372,6 +392,7 @@ SonosAccessory.prototype.setVolume = function (volume, callback) {
                 this.log.warn("Ignoring request; Sonos device has not yet been discovered. Confirm 'room' parameter matches Sonos App");
                 callback(new Error("Sonos has not been discovered yet."));
                 return;
+
         }
 
         this.log("Setting volume to %s", volume);
@@ -380,9 +401,11 @@ SonosAccessory.prototype.setVolume = function (volume, callback) {
                 this.log("Set volume response with data: " + JSON.stringify(data));
                 if (err) {
                         callback(err);
+
                 }
                 else {
                         callback(null);
+
                 }
         }.bind(this));
 }
@@ -496,10 +519,16 @@ SonosAccessory.prototype.updateState = function (callback) {
                         }
                         this.log("getVolume: " + volume);
                         var vol = Number(volume);
-                        accessory.service
-                                .setCharacteristic(Characteristic.Brightness, vol);
-                        accessory.speakerService
-                                .setCharacteristic(Characteristic.Volume, vol);
+                        if (!this.mute) {
+                                accessory.service
+                                        .setCharacteristic(Characteristic.Brightness, vol);
+
+                        }
+                        else {
+                                accessory.speakerService
+                                        .setCharacteristic(Characteristic.Volume, vol);
+
+                        }
 
                 }.bind(this));
 
