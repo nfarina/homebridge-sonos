@@ -311,12 +311,13 @@ SonosAccessory.prototype.setOn = function (on, callback) {
         if (!this.mute) {
                 if (on) {
                         this.device.play(function (err, success) {
-                                this.log("Playback attempt with success: " + success);
                                 if (err) {
+                                        this.log("Playback attempt with failure: " + err);
                                         callback(err);
 
                                 }
                                 else {
+                                        this.log("Playback attempt with success: " + success);
                                         callback(null);
 
                                 }
@@ -324,12 +325,13 @@ SonosAccessory.prototype.setOn = function (on, callback) {
                 }
                 else {
                         this.device.pause(function (err, success) {
-                                this.log("Stop attempt with success: " + success);
                                 if (err) {
+                                        this.log("Stop attempt with failure: " + err);
                                         callback(err);
 
                                 }
                                 else {
+                                        this.log("Stop attempt with success: " + success);
                                         callback(null);
 
                                 }
@@ -339,12 +341,13 @@ SonosAccessory.prototype.setOn = function (on, callback) {
         else {
                 if (on) {
                         this.device.setMuted(false, function (err, success) {
-                                this.log("Unmute attempt with success: " + success);
                                 if (err) {
+                                        this.log("Unmute attempt with failure: " + err);
                                         callback(err);
 
                                 }
                                 else {
+                                        this.log("Unmute attempt with success: " + success);
                                         callback(null);
 
                                 }
@@ -352,12 +355,13 @@ SonosAccessory.prototype.setOn = function (on, callback) {
                 }
                 else {
                         this.device.setMuted(true, function (err, success) {
-                                this.log("Mute attempt with success: " + success);
                                 if (err) {
+                                        this.log("Mute attempt with failure: " + err);
                                         callback(err);
 
                                 }
                                 else {
+                                        this.log("Mute attempt with success: " + success);
                                         callback(null);
 
                                 }
