@@ -162,11 +162,8 @@ function SonosAccessory(log, config) {
                 .setCharacteristic(Characteristic.FirmwareRevision, require('./package.json').version);
 
         this.longPoll = parseInt(this.config.longPoll, 10) || 60;
-        this.shortPoll = parseInt(this.config.shortPoll, 10) || 15;
-        this.shortPollDuration = parseInt(this.config.shortPollDuration, 10) || 300;
         this.tout = null;
-        this.maxCount = this.shortPollDuration / this.shortPoll;
-        this.count = this.maxCount;
+        this.updating = false;
 
         if (!this.mute) {
                 this.service = new Service.Lightbulb(this.name);
@@ -193,13 +190,10 @@ function SonosAccessory(log, config) {
 
         }
 
-        this.search();
         this.periodicUpdate();
 }
 
 SonosAccessory.prototype.search = function () {
-
-        sonosAccessories.push(this);
 
         var search = sonos.search(function (device, model) {
                 this.log.debug("Found device at %s", device.host);
@@ -237,8 +231,25 @@ SonosAccessory.prototype.search = function () {
                                 var coordinator = getZoneGroupCoordinator(this.room);
                                 if (coordinator != undefined) {
                                         if (coordinator.ip == data.ip) {
-                                                this.log("Found a playable coordinator device at %s in zone '%s' for accessory '%s' in accessory room '%s'", data.ip, data.CurrentZoneName, this.name, this.room);
-                                                this.device = device;
+                                                if (sonosAccessories.length) {
+                                                        sonosAccessories.forEach(function (accessory) {
+                                                                if (accessory.device != undefined) {
+                                                                        if (accessory.device.host != coordinator.ip) {
+                                                                                this.log("Found a playable coordinator device at %s in zone '%s' for accessory '%s' in accessory room '%s'", data.ip, data.CurrentZoneName, this.name, this.room);
+                                                                                this.device = device;
+                                                                                sonosAccessories.push(this);
+
+                                                                        }
+                                                                }
+                                                        });
+
+                                                }
+                                                else {
+                                                        this.log("Found a playable coordinator device at %s in zone '%s' for accessory '%s' in accessory room '%s'", data.ip, data.CurrentZoneName, this.name, this.room);
+                                                        this.device = device;
+                                                        sonosAccessories.push(this);
+
+                                                }
                                                 search.destroy(); // we don't need to continue searching.
                                         }
                                 }
@@ -481,17 +492,8 @@ function makeVolumeCharacteristic() {
 
 // Method for state periodic update
 SonosAccessory.prototype.periodicUpdate = function () {
-        this.log.debug("periodicUpdate called");
-
-        // Determine polling interval
-        if (this.count < this.maxCount) {
-                this.count++;
-                var refresh = this.shortPoll;
-
-        } else {
-                var refresh = this.longPoll;
-
-        }
+        this.log("periodicUpdate called");
+        this.search();
 
         // Setup periodic update with polling interval
         this.tout = setTimeout(function () {
@@ -503,14 +505,22 @@ SonosAccessory.prototype.periodicUpdate = function () {
 
                         }
                         // Setup next polling
+                        this.updating = false;
                         this.periodicUpdate();
 
                 }.bind(this));
-        }.bind(this), refresh * 1000);
+        }.bind(this), this.longPoll * 1000);
 }
 
 SonosAccessory.prototype.updateState = function (callback) {
+        if (this.updating) {
+                this.log("updateState called while previous still active");
+                callback(null);
+                return;
+
+        }
         this.log.debug("updateState called");
+        this.updating = true;
 
         // Update states for all HomeKit accessories
         sonosAccessories.forEach(function (accessory) {
