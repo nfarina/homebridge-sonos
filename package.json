@@ -1,6 +1,6 @@
 {
   "name": "homebridge-sonos-schmittx",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Sonos plugin for homebridge: https://github.com/nfarina/homebridge",
   "license": "ISC",
   "keywords": [
@@ -8,10 +8,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/nfarina/homebridge-sonos.git"
+    "url": "git://github.com/schmittx/homebridge-sonos.git"
   },
   "bugs": {
-    "url": "http://github.com/nfarina/homebridge-sonos/issues"
+    "url": "http://github.com/schmittx/homebridge-sonos/issues"
   },
   "engines": {
     "node": ">=0.12.0",
