@@ -185,7 +185,6 @@ SonosAccessory.prototype.search = function() {
         this.log("Found a playable device at %s for room '%s'", host, roomName);
         this.device = device;
         search.destroy(); // we don't need to continue searching.
-
     }.bind(this));
   }.bind(this));
 }
