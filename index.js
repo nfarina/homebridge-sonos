@@ -5,7 +5,7 @@ var inherits = require('util').inherits;
 var Service, Characteristic, VolumeCharacteristic;
 var sonosDevices = new Map();
 var sonosAccessories = [];
-var Listener = require('../homebridge-sonos/node_modules/sonos/lib/events/listener');
+var Listener = require('sonos/lib/events/listener');
 
 module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
@@ -157,7 +157,40 @@ function SonosAccessory(log, config) {
   this.search();
 }
 
+SonosAccessory.zoneTypeIsPlayable = function(zoneType) {
+  // 8 is the Sonos SUB, 4 is the Sonos Bridge, 11 is unknown
+  return zoneType != '11' && zoneType != '8' && zoneType != '4';
+}
+
 SonosAccessory.prototype.search = function() {
+  var search = sonos.search(function(device) {
+    var host = device.host;
+    this.log.debug("Found sonos device at %s", host);
+
+    device.deviceDescription(function (err, description) {
+
+        var zoneType = description["zoneType"];
+        var roomName = description["roomName"];
+
+        if (!SonosAccessory.zoneTypeIsPlayable(zoneType)) {
+          this.log.debug("Sonos device %s is not playable (has an unknown zone type of %s); ignoring", host, zoneType);
+          return;
+        }
+
+        if (roomName != this.room) {
+          this.log.debug("Ignoring device %s because the room name '%s' does not match the desired name '%s'.", host, roomName, this.room);
+          return;
+        }
+
+        this.log("Found a playable device at %s for room '%s'", host, roomName);
+        this.device = device;
+        search.destroy(); // we don't need to continue searching.
+
+    }.bind(this));
+  }.bind(this));
+}
+
+SonosAccessory.prototype.oldSearch = function() {
 
         sonosAccessories.push(this);
 
