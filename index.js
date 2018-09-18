@@ -184,8 +184,7 @@ SonosAccessory.prototype.search = function() {
 
         this.log("Found a playable device at %s for room '%s'", host, roomName);
         this.device = device;
-        search.socket.close(); // we don't need to continue searching.
-
+        search.destroy(); // we don't need to continue searching.
     }.bind(this));
   }.bind(this));
 }
@@ -304,8 +303,8 @@ SonosAccessory.prototype.setOn = function(on, callback) {
       }.bind(this));
     }
     else {
-        this.device.stop(function(err, success) {
-            this.log("Stop attempt with success: " + success);
+        this.device.pause(function(err, success) {
+            this.log("Pause attempt with success: " + success);
             if (err) {
               callback(err);
             }
