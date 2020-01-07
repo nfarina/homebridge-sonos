@@ -182,9 +182,11 @@ SonosAccessory.prototype.search = function() {
           return;
         }
 
-        this.log("Found a playable device at %s for room '%s'", host, roomName);
-        this.device = device;
-        search.destroy(); // we don't need to continue searching.
+        if (null == this.device) { // avoin multiple call of search.destroy in multi-device rooms
+          this.log("Found a playable device at %s for room '%s'", host, roomName);
+          this.device = device;
+          search.destroy(); // we don't need to continue searching.
+        }
     }.bind(this));
   }.bind(this));
 }
