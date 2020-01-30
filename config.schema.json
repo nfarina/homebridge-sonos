@@ -6,12 +6,6 @@
   "schema": {
     "type": "object",
     "properties": {
-      "accessory": {
-        "title": "Accessory",
-        "type": "string",
-        "default": "Sonos",
-        "required": true
-      },
       "name": {
         "title": "Name",
         "type": "string",
