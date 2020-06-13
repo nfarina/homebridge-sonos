@@ -167,6 +167,11 @@ SonosAccessory.prototype.search = function() {
     this.log.debug("Found sonos device at %s", host);
 
     device.deviceDescription().then(function (description) {
+    
+        if (description == undefined) {
+            this.log.debug('Ignoring callback because description is undefined.');
+            return;
+        }
 
         var zoneType = description["zoneType"];
         var roomName = description["roomName"];
@@ -181,9 +186,11 @@ SonosAccessory.prototype.search = function() {
           return;
         }
 
-        this.log("Found a playable device at %s for room '%s'", host, roomName);
-        this.device = device;
-        search.destroy(); // we don't need to continue searching.
+        if (null == this.device) { // avoid multiple call of search.destroy in multi-device rooms
+          this.log("Found a playable device at %s for room '%s'", host, roomName);
+          this.device = device;
+          search.destroy(); // we don't need to continue searching.
+        }
     }.bind(this));
   }.bind(this));
 }
