@@ -1,4 +1,3 @@
-//var sonos = require('sonos');
 var Sonos = require('sonos');
 var _ = require('underscore');
 var inherits = require('util').inherits;
@@ -162,7 +161,7 @@ SonosAccessory.zoneTypeIsPlayable = function(zoneType) {
 }
 
 SonosAccessory.prototype.search = function() {
-  const search = Sonos.DeviceDiscovery({ timeout: 30000 });
+  var search = Sonos.DeviceDiscovery({ timeout: 30000 });
   search.on('DeviceAvailable', function (device, model) {
     var host = device.host;
     this.log.debug("Found sonos device at %s", host);
@@ -184,6 +183,7 @@ SonosAccessory.prototype.search = function() {
 
         this.log("Found a playable device at %s for room '%s'", host, roomName);
         this.device = device;
+        search.destroy(); // we don't need to continue searching.
     }.bind(this));
   }.bind(this));
 }
@@ -245,20 +245,25 @@ SonosAccessory.prototype.getServices = function() {
   return [this.service];
 }
 
-/*
-SonosAccessory.prototype.FindGroupCoordinator = function() {
-    return this.device.getAllGroups().then(
-	groups =>
-	    {
-		var myGroup = groups.find(
-		    group =>
-			group.ZoneGroupMember.some(
-			    member => member.ZoneName == this.room));
-		if (myGroup) {
-		    return myGroup.CoordinatorDevice();
-		}});
+SonosAccessory.prototype.getGroupCoordinator = function() {
+  return this.device.getAllGroups().then(groups => {
+    var myGroup = groups.find(group =>
+      group.ZoneGroupMember.some(
+        member => member.ZoneName == this.room));
+    if (myGroup) {
+      var coordinator = myGroup.CoordinatorDevice();
+      coordinator.deviceDescription().then(desc => {
+        if (desc["roomName"] != this.room) {
+          this.log("Found group coordinator " + desc["roomName"]);
+        }
+      })
+      return coordinator;
+    }
+    else {
+      return Promise.reject("Coordinator could not be found.");
+    }
+  });
 }
-*/
 
 SonosAccessory.prototype.getOn = function(callback) {
   if (!this.device) {
@@ -267,45 +272,33 @@ SonosAccessory.prototype.getOn = function(callback) {
     return;
   }
 
-    // Find group coordinator
-  this.device.getAllGroups().then(
-	groups =>
-	    {
-		var myGroup = groups.find(
-		    group =>
-			group.ZoneGroupMember.some(
-			    member => member.ZoneName == this.room));
-		if (myGroup) {
-		    var controller = myGroup.CoordinatorDevice();
-		    this.log("Found group coordinator " + controller.room);
-
-  if (!this.mute) {
-      controller.getCurrentState().then(function(state, err) {
-      if (err) {
-        callback(err);
-      }
-      else {
-        this.log.warn("Current state for Sonos: " + state);
-        var on = (state == "playing");
-        callback(null, on);
-      }
-    }.bind(this));
-  }
-  else {
-      controller.getMuted().then(function(state, err) {
-
-      if (err) {
-        callback(err);
-      }
-      else {
-        this.log.warn("Current state for Sonos: " + state);
-        var on = (state == false);
-        callback(null, on);
-      }
-    }.bind(this));
-
-  }
-		}});
+  this.getGroupCoordinator().then(coordinator => {
+    if (!this.mute) {
+      coordinator.getCurrentState().then(function(state, err) {
+        if (err) {
+          callback(err);
+        }
+        else {
+          this.log.warn("Current state for Sonos: " + state);
+          var on = (state == "playing");
+          callback(null, on);
+        }
+      }.bind(this));
+    }
+    else {
+      coordinator.getMuted().then(function(state, err) {
+        if (err) {
+          callback(err);
+        }
+        else {
+          this.log.warn("Current state for Sonos: " + state);
+          var on = (state == false);
+          callback(null, on);
+        }
+      }.bind(this));
+    }
+  })
+  .catch(reason => callback(reason));
 }
 
 SonosAccessory.prototype.setOn = function(on, callback) {
@@ -315,69 +308,32 @@ SonosAccessory.prototype.setOn = function(on, callback) {
     return;
   }
 
-    this.log("Setting power to " + on);
+  this.log("Setting power to " + on);
 
-    // Find group coordinator
-  this.device.getAllGroups().then(
-	groups =>
-	    {
-		var myGroup = groups.find(
-		    group =>
-			group.ZoneGroupMember.some(
-			    member => member.ZoneName == this.room));
-		if (myGroup) {
-		    var controller = myGroup.CoordinatorDevice();
-		    this.log("Found group coordinator " + controller.room);
+  var resultHandler = function(logMessage) {
+    return function(success, err) {
+      this.log(logMessage + success);
+      callback(err ? err : null);
+    }.bind(this);
+  }.bind(this);
 
-  if (!this.mute){
-    if (on) {
-      controller.play().then(function(success, err) {
-        this.log("Playback attempt with success: " + success);
-        if (err) {
-          callback(err);
-        }
-        else {
-          callback(null);
-        }
-      }.bind(this));
+  this.getGroupCoordinator().then(coordinator => {
+    if (!this.mute){
+      if (on) {
+        coordinator.play().then(
+          resultHandler("Playback attempt with success: "));
+      }
+      else {
+        coordinator.pause().then(
+          resultHandler("Pause attempt with success: "));
+      }
     }
     else {
-        controller.pause().then(function(success, err) {
-            this.log("Pause attempt with success: " + success);
-            if (err) {
-              callback(err);
-            }
-            else {
-              callback(null);
-            }
-        }.bind(this));
+      coordinator.setMuted(!on).then(
+        resultHandler((on ? "Unmute" : "Mute") + " attempt with success: "));
     }
-  }
-  else {
-    if (on) {
-	controller.setMuted(false).then( function(success, err) {
-        this.log("Unmute attempt with success: " + success);
-        if (err) {
-          callback(err);
-        }
-        else {
-          callback(null);
-        }
-      }.bind(this));
-    }
-    else {
-        controller.setMuted(true).then(function(success, err) {
-            this.log("Mute attempt with success: " + success);
-            if (err) {
-              callback(err);
-            }
-            else {
-              callback(null);
-            }
-        }.bind(this));
-    }
-  }
-		}});
+  })
+  .catch(reason => callback(reason));
 }
 
 SonosAccessory.prototype.getVolume = function(callback) {
