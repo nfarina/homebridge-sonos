@@ -11,7 +11,7 @@ module.exports = function(homebridge) {
 
   homebridge.registerAccessory("homebridge-sonos", "Sonos", SonosAccessory);
 }
-
+module.exports = SonosAccessory;
 
 //
 // Node-Sonos Functions to process device information
@@ -140,17 +140,17 @@ function SonosAccessory(log, config) {
 
   if (!this.room) throw new Error("You must provide a config value for 'room'.");
 
-  this.service = new Service.Switch(this.name);
+  // this.service = new Service.Switch(this.name);
 
-  this.service
-    .getCharacteristic(Characteristic.On)
-    .on('get', this.getOn.bind(this))
-    .on('set', this.setOn.bind(this));
+  // this.service
+  //   .getCharacteristic(Characteristic.On)
+  //   .on('get', this.getOn.bind(this))
+  //   .on('set', this.setOn.bind(this));
 
-  this.service
-    .addCharacteristic(Characteristic.Volume)
-    .on('get', this.getVolume.bind(this))
-    .on('set', this.setVolume.bind(this));
+  // this.service
+  //   .addCharacteristic(Characteristic.Volume)
+  //   .on('get', this.getVolume.bind(this))
+  //   .on('set', this.setVolume.bind(this));
 
   this.search();
 }
@@ -166,10 +166,10 @@ SonosAccessory.prototype.search = function() {
     var host = device.host;
     this.log.debug("Found sonos device at %s", host);
 
-    device.deviceDescription().then(function (description) {
+    device.deviceDescription().then(function (description, err) {
     
         if (description == undefined) {
-            this.log.debug('Ignoring callback because description is undefined.');
+            this.log.debug('Ignoring callback because description is undefined (' + err + ')');
             return;
         }
 
@@ -279,33 +279,24 @@ SonosAccessory.prototype.getOn = function(callback) {
     return;
   }
 
-  this.getGroupCoordinator().then(coordinator => {
-    if (!this.mute) {
-      coordinator.getCurrentState().then(function(state, err) {
-        if (err) {
-          callback(err);
-        }
-        else {
-          this.log.warn("Current state for Sonos: " + state);
-          var on = (state == "playing");
-          callback(null, on);
-        }
-      }.bind(this));
-    }
-    else {
-      coordinator.getMuted().then(function(state, err) {
-        if (err) {
-          callback(err);
-        }
-        else {
-          this.log.warn("Current state for Sonos: " + state);
-          var on = (state == false);
-          callback(null, on);
-        }
-      }.bind(this));
-    }
-  })
-  .catch(reason => callback(reason));
+  if (!this.mute) {
+    this.getGroupCoordinator().then(coordinator => {
+      coordinator.getCurrentState().then(state => {
+        this.log.warn("Current state for Sonos: " + state);
+        var on = (state == "playing");
+        callback(null, on);
+      })
+      .catch(err => callback(err));
+    })
+    .catch(err => callback(err));
+  }
+  else {
+    this.device.getMuted().then(muted => {
+      this.log.warn("Current state for Sonos: " + muted);
+      callback(null, !muted);
+    })
+    .catch(err => callback(err));
+  }
 }
 
 SonosAccessory.prototype.setOn = function(on, callback) {
@@ -324,8 +315,8 @@ SonosAccessory.prototype.setOn = function(on, callback) {
     }.bind(this);
   }.bind(this);
 
-  this.getGroupCoordinator().then(coordinator => {
-    if (!this.mute){
+  if (!this.mute){
+    this.getGroupCoordinator().then(coordinator => {
       if (on) {
         coordinator.play().then(
           resultHandler("Playback attempt with success: "));
@@ -334,13 +325,13 @@ SonosAccessory.prototype.setOn = function(on, callback) {
         coordinator.pause().then(
           resultHandler("Pause attempt with success: "));
       }
-    }
-    else {
-      coordinator.setMuted(!on).then(
-        resultHandler((on ? "Unmute" : "Mute") + " attempt with success: "));
-    }
-  })
-  .catch(reason => callback(reason));
+    })
+    .catch(reason => callback(reason));
+  }
+  else {
+    this.device.setMuted(!on).then(
+      resultHandler((on ? "Unmute" : "Mute") + " attempt with success: "));
+  }
 }
 
 SonosAccessory.prototype.getVolume = function(callback) {
