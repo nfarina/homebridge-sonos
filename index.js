@@ -11,7 +11,6 @@ module.exports = function(homebridge) {
 
   homebridge.registerAccessory("homebridge-sonos", "Sonos", SonosAccessory);
 }
-module.exports = SonosAccessory;
 
 //
 // Node-Sonos Functions to process device information
@@ -138,19 +137,23 @@ function SonosAccessory(log, config) {
   this.room = config["room"];
   this.mute = config["mute"];
 
+  // cache lifetimes
+  this.groupCacheLifetime = (config["groupCacheLifetime"] || 15) * 1000;
+  this.deviceCacheLifetime = (config["deviceCacheLifetime"] || 3600) * 1000;
+
   if (!this.room) throw new Error("You must provide a config value for 'room'.");
 
-  // this.service = new Service.Switch(this.name);
+  this.service = new Service.Switch(this.name);
 
-  // this.service
-  //   .getCharacteristic(Characteristic.On)
-  //   .on('get', this.getOn.bind(this))
-  //   .on('set', this.setOn.bind(this));
+  this.service
+    .getCharacteristic(Characteristic.On)
+    .on('get', this.getOn.bind(this))
+    .on('set', this.setOn.bind(this));
 
-  // this.service
-  //   .addCharacteristic(Characteristic.Volume)
-  //   .on('get', this.getVolume.bind(this))
-  //   .on('set', this.setVolume.bind(this));
+  this.service
+    .addCharacteristic(Characteristic.Volume)
+    .on('get', this.getVolume.bind(this))
+    .on('set', this.setVolume.bind(this));
 
   this.search();
 }
@@ -166,7 +169,7 @@ SonosAccessory.prototype.search = function() {
     var host = device.host;
     this.log.debug("Found sonos device at %s", host);
 
-    device.deviceDescription().then(function (description, err) {
+    this.getDeviceDescription(device).then(function (description, err) {
     
         if (description == undefined) {
             this.log.debug('Ignoring callback because description is undefined (' + err + ')');
@@ -252,16 +255,57 @@ SonosAccessory.prototype.getServices = function() {
   return [this.service];
 }
 
-SonosAccessory.prototype.getGroupCoordinator = function() {
+// device and description shared cache
+SonosAccessory.deviceCache = {
+  groups: {
+    groups: null,
+    lastUpdate: 0
+  },
+  descriptions: {}
+};
+
+SonosAccessory.prototype.getGroups = function() {
+  if (Date.now() < SonosAccessory.deviceCache.groups.lastUpdate + (this.groupCacheLifetime)) {
+    // return cached group status if it was refreshed less than 15 seconds ago
+    return Promise.resolve(SonosAccessory.deviceCache.groups.groups);
+  }
+
+  this.log.debug("Refreshing group cache");
   return this.device.getAllGroups().then(groups => {
+    SonosAccessory.deviceCache.groups.lastUpdate = Date.now();
+    SonosAccessory.deviceCache.groups.groups = groups;
+    return groups;
+  });
+}
+
+SonosAccessory.prototype.getDeviceDescription = function(device) {
+  // use cached description if it's available and less than an hour old
+  var cacheKey = `${device.host}:${device.port}`;
+  var desc = SonosAccessory.deviceCache.descriptions[cacheKey];
+  if (desc != undefined && desc.lastUpdate > Date.now() - this.deviceCacheLifetime) {
+    return Promise.resolve(desc.desc);
+  }
+
+  this.log.debug("Refreshing cached description for device %s", cacheKey);
+  return device.deviceDescription().then(desc => {
+    SonosAccessory.deviceCache.descriptions[cacheKey] = {
+      desc: desc,
+      lastUpdate: Date.now()
+    };
+    return desc;
+  })
+}
+
+SonosAccessory.prototype.getGroupCoordinator = function() {
+  return this.getGroups().then(groups => {
     var myGroup = groups.find(group =>
       group.ZoneGroupMember.some(
         member => member.ZoneName == this.room));
     if (myGroup) {
       var coordinator = myGroup.CoordinatorDevice();
-      coordinator.deviceDescription().then(desc => {
+      this.getDeviceDescription(coordinator).then(desc => {
         if (desc["roomName"] != this.room) {
-          this.log("Found group coordinator " + desc["roomName"]);
+          this.log.debug("Found group coordinator " + desc["roomName"]);
         }
       })
       return coordinator;
