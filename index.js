@@ -255,7 +255,13 @@ SonosAccessory.prototype.getServices = function() {
   return [this.service];
 }
 
-// device and description shared cache
+// Device and description cache.
+// Although this format should be 'static' and shared
+// across SonosAccessory instances, HomeBridge seems
+// to instantiate plugins in a way that keeps them entirely
+// separate, so this cache is distinct per instance.
+// However, the cache is still valuable to the individual
+// instance using it.
 SonosAccessory.deviceCache = {
   groups: {
     groups: null,
@@ -266,7 +272,7 @@ SonosAccessory.deviceCache = {
 
 SonosAccessory.prototype.getGroups = function() {
   if (Date.now() < SonosAccessory.deviceCache.groups.lastUpdate + (this.groupCacheLifetime)) {
-    // return cached group status if it was refreshed less than 15 seconds ago
+    // return cached group status if it was refreshed less than the configured lifetime ago
     return Promise.resolve(SonosAccessory.deviceCache.groups.groups);
   }
 
@@ -279,7 +285,7 @@ SonosAccessory.prototype.getGroups = function() {
 }
 
 SonosAccessory.prototype.getDeviceDescription = function(device) {
-  // use cached description if it's available and less than an hour old
+  // use cached description if it's available and refreshed less than the configured lifetime ago
   var cacheKey = `${device.host}:${device.port}`;
   var desc = SonosAccessory.deviceCache.descriptions[cacheKey];
   if (desc != undefined && desc.lastUpdate > Date.now() - this.deviceCacheLifetime) {
