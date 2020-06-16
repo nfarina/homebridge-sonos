@@ -172,10 +172,10 @@ SonosAccessory.prototype.search = function() {
     var host = device.host;
     this.log.debug("Found sonos device at %s", host);
 
-    this.getDeviceDescription(device).then(function (description, err) {
+    this.getDeviceDescription(device).then(description => {
     
         if (description == undefined) {
-            this.log.debug('Ignoring callback because description is undefined (' + err + ')');
+            this.log.debug('Ignoring callback because description is undefined.');
             return;
         }
 
@@ -197,7 +197,8 @@ SonosAccessory.prototype.search = function() {
           this.device = device;
           search.destroy(); // we don't need to continue searching.
         }
-    }.bind(this));
+    })
+    .catch(reason => this.log.debug("Unexpected error getting device description: " + reason));
   }.bind(this));
 }
 
@@ -339,16 +340,16 @@ SonosAccessory.prototype.getOn = function(callback) {
         var on = (state == "playing");
         callback(null, on);
       })
-      .catch(err => callback(err));
+      .catch(reason => callback(reason));
     })
-    .catch(err => callback(err));
+    .catch(reason => callback(reason));
   }
   else {
     this.device.getMuted().then(muted => {
-      this.log.warn("Current state for Sonos: " + muted);
+      this.log.warn("Current state for Sonos: " + (muted ? "muted" : "unmuted"));
       callback(null, !muted);
     })
-    .catch(err => callback(err));
+    .catch(reason => callback(reason));
   }
 }
 
@@ -359,31 +360,44 @@ SonosAccessory.prototype.setOn = function(on, callback) {
     return;
   }
 
-  this.log("Setting power to " + on);
-
-  var resultHandler = function(logMessage) {
-    return function(success, err) {
-      this.log(logMessage + success);
-      callback(err ? err : null);
-    }.bind(this);
-  }.bind(this);
+  var action = this.mute ? (on ? "Unmute" : "Mute") : (on ? "Play" : "Pause");
+  this.log("Setting status to " + action);
 
   if (!this.mute){
     this.getGroupCoordinator().then(coordinator => {
       if (on) {
-        coordinator.play().then(
-          resultHandler("Playback attempt with success: "));
+        coordinator.play().then(success => {
+          this.log("Playback attempt with success: " + success);
+          callback(null);
+        })
+        .catch(reason => callback(reason));
       }
       else {
-        coordinator.pause().then(
-          resultHandler("Pause attempt with success: "));
+        coordinator.pause().then(success => {
+          this.log("Pause attempt with success: " + success);
+          callback(null);
+        })
+        .catch(reason => callback(reason));
       }
     })
     .catch(reason => callback(reason));
   }
   else {
-    this.device.setMuted(!on).then(
-      resultHandler((on ? "Unmute" : "Mute") + " attempt with success: "));
+    this.device.setMuted(!on).then(result => {
+      // The node-sonos library seems to return an empty object (i.e. {})
+      // after muting/unmuting, so we can only check what's in the object
+      // to see if there's anything unexpected.
+      if (result && (typeof(result) == 'object' && Object.entries(result).length == 0)
+          || result == true) {
+        this.log(action + " attempt succeeded.");
+        callback(null);
+      }
+      else {
+        this.log(`Unexpected result trying to ${action}: ${JSON.stringify(result)}`);
+        callback(result);
+      }
+    })
+    .catch(reason => callback(reason));
   }
 }
 
@@ -394,17 +408,11 @@ SonosAccessory.prototype.getVolume = function(callback) {
     return;
   }
 
-    this.device.getVolume().then(function(volume, err) {
-
-    if (err) {
-      callback(err);
-    }
-    else {
-      this.log("Current volume: %s", volume);
-      callback(null, Number(volume));
-    }
-
-  }.bind(this));
+  this.device.getVolume().then(volume => {
+    this.log("Current volume: %s", volume);
+    callback(null, Number(volume));
+  })
+  .catch(reason => callback(reason));
 }
 
 SonosAccessory.prototype.setVolume = function(volume, callback) {
@@ -416,13 +424,9 @@ SonosAccessory.prototype.setVolume = function(volume, callback) {
 
   this.log("Setting volume to %s", volume);
 
-    this.device.setVolume(volume + "").then( function(data, err) {
+  this.device.setVolume(volume + "").then(data => {
     this.log("Set volume response with data: " + data);
-    if (err) {
-      callback(err);
-    }
-    else {
-      callback(null);
-    }
-  }.bind(this));
+    callback(null);
+  })
+  .catch(reason => callback(reason));
 }
