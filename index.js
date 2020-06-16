@@ -10,6 +10,9 @@ module.exports = function(homebridge) {
   Characteristic = homebridge.hap.Characteristic;
 
   homebridge.registerAccessory("homebridge-sonos", "Sonos", SonosAccessory);
+
+  // Not expected by Homebridge, but enables easy testing via test/init.js
+  return SonosAccessory;
 }
 
 //
